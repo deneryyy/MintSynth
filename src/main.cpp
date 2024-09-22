@@ -13,8 +13,10 @@
 #include "spa/param/param.h"
 #include "spa/pod/builder.h"
 #include "spa/utils/defs.h"
+#include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <iostream>
 #include <math.h>
  
 #include <spa/param/audio/format-utils.h>
@@ -23,6 +25,8 @@
 #include <mint_synth.hpp>
 
 #define MINT_SYNTH_VERSION "0.1.0"
+
+using namespace std::chrono_literals;
 
 namespace mint_synth {
   static const struct pw_stream_events stream_events = {
@@ -35,15 +39,16 @@ int main(int arg_count, char* args[]) {
   quill::Backend::start();
 
   quill::Logger* logger = quill::Frontend::create_or_get_logger(
-    "root", quill::Frontend::create_or_get_sink<quill::ConsoleSink>("sink_id_1"));
-
-  mint_synth::mint_synth_core::initialize_mint_synth();
+    "mint_synth", 
+    quill::Frontend::create_or_get_sink<quill::ConsoleSink>("sink_id_1")
+  );
 
   mint_synth::mint_synth_data data = { 
-    .accumulator = 0, 
-    .time = 0,
-    .state = false,
+    .logger = logger,
+    .accumulator = 0,
+    .time_passed = 0ms, 
   };
+
   struct pw_context* context;
   struct pw_core* core;
   struct spa_hook stream_listener;
@@ -62,7 +67,7 @@ int main(int arg_count, char* args[]) {
   
   data.stream = pw_stream_new(
     core,
-    "mint-synth-src", 
+    "mint-synth", 
     pw_properties_new(
       PW_KEY_MEDIA_TYPE, "Audio",
       PW_KEY_MEDIA_CATEGORY, "Playback",
@@ -101,7 +106,22 @@ int main(int arg_count, char* args[]) {
 
   LOG_INFO(logger, "Successfully initialized Mint Synth version {}!", std::string_view{MINT_SYNTH_VERSION});
 
+  std::thread console_thread([](pw_main_loop* loop) {
+    for (;;) {
+      std::string input;
+      std::cin >> input;
+      if (input == "q") {
+        pw_main_loop_quit(loop);
+        break;
+      }
+    }
+  }, data.loop);
+
+  data.time_start = std::chrono::high_resolution_clock::now();
   pw_main_loop_run(data.loop);
+
+  console_thread.join();
+
   pw_stream_destroy(data.stream);
   pw_core_disconnect(core);
   pw_context_destroy(context);
