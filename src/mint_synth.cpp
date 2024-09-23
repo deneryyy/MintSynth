@@ -28,7 +28,7 @@ namespace mint_synth {
     return this->current_project;
   }
 
-  void write_spa_buffer(mint_synth_data* process_data, pw_buffer* pipewire_buf, spa_buffer* spa_buf, double k) {
+  void write_to_master(mint_synth_data* process_data, pw_buffer* pipewire_buf, spa_buffer* spa_buf, double k) {
     int i, c, n_frames, stride;
     int16_t* dst, val;
   
@@ -38,8 +38,7 @@ namespace mint_synth {
     stride = sizeof(int16_t) * DEFAULT_CHANNELS;
     n_frames = spa_buf->datas[0].maxsize / stride;
     if (pipewire_buf->requested)
-      n_frames = SPA_MIN(pipewire_buf->requested, n_frames);
- 
+      n_frames = SPA_MIN(pipewire_buf->requested, n_frames); 
    
     for (i = 0; i < n_frames; i++) {
       process_data->accumulator += M_PI_M2 * 150 * k / DEFAULT_RATE;
@@ -88,8 +87,8 @@ namespace mint_synth {
     int fourth_ms = (60000 / current_project.get_tempo());
     double fourth_rhythm = (1 - (double)(time_passed_ms % fourth_ms) / (double)fourth_ms);
 
-    write_spa_buffer(process_data, pipewire_buf, spa_buf, fourth_rhythm);
-    write_spa_buffer(process_data, pipewire_buf, spa_buf, 1.0);
+    write_to_master(process_data, pipewire_buf, spa_buf, fourth_rhythm);
+    write_to_master(process_data, pipewire_buf, spa_buf, 1.0);
     
     pw_stream_queue_buffer(process_data->stream, pipewire_buf);
   }
